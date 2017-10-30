@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<title>problems.html</title>
+
+</head>
+
+<body>
+
+<h1>Analyze</h1>
+
+<p>It's actually not clear (since contract has too many bugs in it) what was initial idea about adding shareholders. Does owner offices contract meant that anybody may attend in contract, or shareholders need to be added first by owner of contract. I will assume first.
+However, if idea was in seconds point - we'll need to replace <code>tx.origin</code> to <code>msg.sender</code> in <code>addShareholder</code> method and throw an exception if <code>msg.sender</code> in fallback function is unknown.</p>
+
+<p>After reading original code I will assume following:</p>
+
+<ul>
+<li>Any user(address) is allowed to attend in shares.</li>
+<li>Idea of contract allow users to take part in shares. After owner of contract calls <code>dispense</code> use should get their shares back.</li>
+</ul>
+
+<h2>Bugs and mistakes:</h2>
+
+<ul>
+<li><code>addShareHolder</code> and <code>fallback function</code> may be called separately. Actually, separating <code>addShareholder</code> doesn't make sense and needs to be moved fallback function.</li>
+</ul>
+
+<p><code>
+   function () payable {
+      shares[msg.sender] = msg.value;
+   }
+</code></p>
+
+<p>Needs to changed to</p>
+
+<p><code>
+   function () payable {
+      shares[msg.sender] = msg.value;
+      shareholders.push(msg.sender);
+   }
+</code></p>
+
+<ul>
+<li><p>Adding shareholder check <code>tx.origin</code> instead of <code>msg.sender</code>. Since we can call <code>send</code> or <code>transfer</code> - we probably may execute untrusted contract function, which may call <code>addShareholder</code> function - and this context <code>tx.origin</code> == <code>owner</code> always. So, attacker address may be added to list of shareholders
+So, replacing <code>tx.origin</code> with <code>msg.sender</code> fixes the issue, however removing this method match better.</p></li>
+<li><p><code>withdraw</code> function has re-entrancy bug in it. Since we execute <code>send</code> before we decrease amount in shares. Attacker contract may call <code>withdraw</code> again in it's fallback function. See suggested solution, idea is just allow withdraw amount of funds available in <code>pendingShares</code> mapping. Calling <code>send</code> happens only if any amount present for send.</p></li>
+</ul>
+
+<p>Original code:
+<code>
+   /// Withdraw your share.
+   function withdraw() {
+     if (msg.sender.send(shares[msg.sender])) {
+         shares[msg.sender] = 0;
+      } else {
+         FailedSend(msg.sender, shares[msg.sender]);
+      }
+   }
+</code></p>
+
+<p>Needs to changed to something close to:</p>
+
+<p>```
+  /// Withdraw your available share.
+  function withdraw() returns (bool) {
+    uint amount = pendingShares[msg.sender];
+    if (amount > 0) {
+      pendingShares[msg.sender] = 0;</p>
+
+<pre><code>  if (msg.sender.send(amount)) {
+    return true;
+  } else {
+    FailedSend(msg.sender, amount);
+    pendingShares[msg.sender] = amount;
+    return false;
+  }
+}
+</code></pre>
+
+<p>}
+```</p>
+
+<ul>
+<li>In dispense <code>for</code> statement declares <code>i</code> as <code>uint8</code> by default. Need to explicitly define <code>uint</code>. Otherwise in number if shareholders more than 255, it will never end.</li>
+</ul>
+
+<p><code>
+      for (var i = 0; i &lt; shareholders.length; i++) {
+</code></p>
+
+<p>change to:</p>
+
+<p><code>
+      for (uint i = 0; i &lt; shareholders.length; i++) {
+</code></p>
+
+<ul>
+<li>Current implementation of <code>dispence</code> makes optimistic assumption that every <code>send</code> will successfully passed. Which is incorrect. If <code>send</code> function will return false, we should at least return back funds to shares. I said at least, because as I mentioned above I guess we should just make funds available for retrieve for users.</li>
+</ul>
+
+</body>
+</html>
