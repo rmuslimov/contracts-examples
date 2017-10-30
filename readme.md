@@ -99,4 +99,8 @@ Better implementation from my point of view, would be:
 
 ## Example of attacker contract which will empty InSecureAndMessy funds
 
-See attached file `contracts/Attacker.sol'`. It will simply use re-entrancy attack mentioned above. We assume that we can predict number of iteration to empty victim's address. In real world, probably we will need make number of iterations slightly lower, in case somebody else withdraw funds at the same moment.
+See attached file `./contracts/Attacker.sol'`. It will simply use re-entrancy attack mentioned above. We assume that we can predict number of iteration to empty victim's address. In real world, probably we will need make number of iterations slightly lower, in case somebody else withdraw funds at the same moment.
+
+## New clean version
+
+Suggested version of contract can be found at `./contracts/SecureAndClean.sol`. This version has two mapping in it for current `shares` and `pendingShares`. Pending shares appear once `dispense` function called.
